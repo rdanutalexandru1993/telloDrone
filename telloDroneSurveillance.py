@@ -11,8 +11,6 @@ from tello import *
 
 start()
 power = get_battery()
-
-print("Power level: ", power, "%")
+print("Battery is now %d%%" % power)
 takeoff()
 land()
-

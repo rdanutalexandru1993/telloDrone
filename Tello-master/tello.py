@@ -1,18 +1,10 @@
 import socket
 import re
 import sys
-import cv2
 import threading
-import sys
 import copy
-import numpy as np
-import tkinter as tk
-from PIL import ImageTk, Image
 import platform
 import time
-import contextlib
-with contextlib.redirect_stdout(None):
-    import pygame
 
 # This is a pointer to the module object instance itself
 this = sys.modules[__name__]
@@ -23,6 +15,7 @@ this.mon = False
 tello_ip = '192.168.10.1'
 tello_port = 8889
 tello_addr = (tello_ip, tello_port)
+response_timeout_seconds = 10
 
 def _send(command):
   """Sends a command to the drone.
@@ -41,15 +34,20 @@ def _receive():
   Returns:
       str: The response from the drone
   """
-  try:
-    response, ip_address = this.sock.recvfrom(128)
-    decoded = response.decode(encoding='utf-8')
-    return decoded
-  except Exception as e:
-      if response[0] == 204:
-          # We've caught the data the drone sends on start up
-          # Just try again
-          return _receive()
+  while True:
+    try:
+      response, ip_address = this.sock.recvfrom(128)
+      if response and response[0] == 204:
+        # We've caught the data the drone sends on start up.
+        # Just try again.
+        continue
+      decoded = response.decode(encoding='utf-8')
+      return decoded
+    except socket.timeout:
+      raise TimeoutError(
+        "Timed out waiting for a response from the Tello. "
+        "Make sure the computer is connected to the drone Wi-Fi network."
+      )
 
 def send_and_wait(command):
     """Sends a command to the drone and waits for the response.
@@ -74,6 +72,7 @@ def start():
     """Tell the drone to start receiving commands."""
     if (this.sock is None):
         this.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        this.sock.settimeout(response_timeout_seconds)
         this.sock.bind(('', 9000))
     response = send_and_wait("command")
     if response != "ok":
@@ -246,6 +245,10 @@ class _VideoStream:
             send_and_wait("streamon")
             self.kill_event = threading.Event()
             if platform.system() == "Darwin":
+                import contextlib
+                with contextlib.redirect_stdout(None):
+                    import pygame
+
                 self.thread = threading.Thread(target=self._pygame_video_loop, args=[self.kill_event])
                 pygame.init()
                 self.screen = pygame.display.set_mode([640, 480])
@@ -257,6 +260,10 @@ class _VideoStream:
 
 
     def _tkinter_video_loop(self, stop_event):
+        import cv2
+        import tkinter as tk
+        from PIL import ImageTk, Image
+
         root = tk.Tk()
         root.title("Video Stream")
         root.protocol("WM_DELETE_WINDOW", lambda: stop_event.set())
@@ -280,6 +287,12 @@ class _VideoStream:
         root.destroy()
 
     def _pygame_video_loop(self, stop_event):
+        import cv2
+        import numpy as np
+        import contextlib
+        with contextlib.redirect_stdout(None):
+            import pygame
+
         cap = cv2.VideoCapture("udp://0.0.0.0:11111", cv2.CAP_FFMPEG)
         while not stop_event.is_set():
             ret, frame = cap.read()
@@ -297,6 +310,10 @@ class _VideoStream:
         if self.started:
             self.kill_event.set()
             if platform.system() == "Darwin":
+                import contextlib
+                with contextlib.redirect_stdout(None):
+                    import pygame
+
                 pygame.quit()
             self.started = False
             send_and_wait("streamoff")
@@ -335,4 +352,3 @@ def get_video_frame():
     global _video
     if _video is not None:
         return _video.get_frame()
-

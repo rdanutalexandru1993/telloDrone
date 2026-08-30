@@ -39,8 +39,7 @@ from tello import (  # noqa: E402
     backward,
 )
 
-
-MIN_BATTERY_PERCENT = 35
+MIN_BATTERY_PERCENT = 10
 ROTATE_STEP_DEGREES = 30
 MAX_SEARCH_ROTATION_DEGREES = 360
 MOVE_DISTANCE_CM = 40
@@ -223,6 +222,7 @@ def main() -> None:
             if wave_detector.update(frame, face):
                 if next_move_is_closer:
                     print(f"Wave detected: moving closer {MOVE_DISTANCE_CM} cm")
+                    print(f"Battery: {battery}%")
                     forward(MOVE_DISTANCE_CM)
                 else:
                     print(f"Wave detected: moving back {MOVE_DISTANCE_CM} cm")

@@ -6,6 +6,6 @@ setup(
       install_requires = [
           'opencv-python',
           'pillow',
-          'pygame'
+          'pygame; platform_system=="Darwin"'
       ]
   )
